@@ -5,7 +5,6 @@ import pandas as pd
 import numpy as np
 import yfinance as yf
 import talib as ta
-import openpyxl
 #Data Visulization
 import plotly.express as px
 import seaborn as sns  
@@ -22,13 +21,13 @@ from sklearn.metrics import accuracy_score
 
 ############################################################################
 """Ticker Archive"""
-EUR/USD = 'EURUSD=X'
-Bitcoin  = 'BTC-USD'
-S&P = 'SPY'
+eurusd = 'EURUSD=X'
+bitcoin  = 'BTC-USD'
+sp500 = 'SPY'
 
 ############################################################################
 """Global Variables"""
-ticker = S&P
+ticker = eurusd
 drop_labels = ['close_offset', 'close_higher']
 label = 'close_higher'
 
@@ -45,6 +44,7 @@ price_data.drop(['Volume','Dividends','Stock Splits'], axis=1, inplace=True)
 #Target Column
 price_data['close_offset'] = price_data['Close'].shift(-1)
 price_data['close_higher'] = price_data['close_offset'] > price_data['Close']
+
 ############################################################################
 """Feature Engineering"""
 #TA Variables'''
@@ -97,7 +97,6 @@ price_data['SPINNINGTOP'] = ta.CDLSPINNINGTOP(open,high,low,close)
 
 #Remove N/As
 price_data.dropna(inplace=True)
-price_data.to_excel('price_data.xlsx')
 
 ############################################################################
 """Data Split"""
@@ -110,8 +109,8 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_
 ############################################################################
 """Base Models Training"""
 #Instantiate Models
-xgb_clf = xgb.XGBClassifier()
-rf_clf = RandomForestClassifier()
+xgb_clf = xgb.XGBClassifier(seed=555)
+rf_clf = RandomForestClassifier(random_state=555)
 
 #XGB Grid/Train
 xgb_pipeline = Pipeline([
@@ -131,7 +130,7 @@ xgb_grid = GridSearchCV(xgb_pipeline,
 
 xgb_grid.fit(X_train, y_train)
 xgb_model = xgb_grid.best_estimator_
-print(f'XGB Accuracy Score: {xgb_grid.best_score_}')
+print(f'XGB Train Accuracy Score: {xgb_grid.best_score_}')
 
 #Random Forest Grid/Train
 rf_pipeline = Pipeline([
@@ -152,7 +151,8 @@ rf_grid = GridSearchCV(rf_pipeline,
 rf_grid.fit(X_train, y_train)
 
 rf_model = rf_grid.best_estimator_
-print(f'RF Accuracy Score: {rf_grid.best_score_}')
+print(f'RF Train Accuracy Score: {rf_grid.best_score_}')
+
 ############################################################################
 """Ensemble Training"""
 #Ensemble
@@ -179,7 +179,8 @@ ensemble_grid = GridSearchCV(ensemble_pipeline,
 #Model Train
 ensemble_grid.fit(X_train, y_train)
 ensemble_model = ensemble_grid.best_estimator_
-print(f'Train Accuracy Score: {ensemble_grid.best_score_}')
+print(f'XGB Train Accuracy Score: {ensemble_grid.best_score_}')
+
 ############################################################################
 """Model Evaluation"""
 #Ensemble Score
@@ -197,5 +198,7 @@ ensemble_score = accuracy_score(y_test, ensemble_y_pred)
 #Test Scores
 print(f'XGB Test Accuracy Score: {xgb_score}')
 print(f'Random Forest Test Accuracy Score: {rf_score}')
-print(f'Ensemble Test Accuracy Score: {ensemble_score}') #Ensemble lower in accuracy potentially due to low diversity of input models
+print(f'Ensemble Test Accuracy Score: {ensemble_score}')
 
+############################################################################
+"""Model Visualization"""
