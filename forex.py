@@ -11,15 +11,26 @@ import plotly.express as px
 import seaborn as sns  
 import matplotlib.pyplot as plt
 #Modeling
-from sklearn.pipeline import make_pipeline
+from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
-from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
+from sklearn.ensemble import RandomForestClassifier, VotingClassifier
+import xgboost as xgb
+from sklearn.metrics import accuracy_score
+
+############################################################################
+"""Ticker Archive"""
+EUR/USD = 'EURUSD=X'
+Bitcoin  = 'BTC-USD'
+S&P = 'SPY'
 
 ############################################################################
 """Global Variables"""
-ticker = 'EURUSD=X'
+ticker = S&P
+drop_labels = ['close_offset', 'close_higher']
+label = 'close_higher'
 
 ############################################################################
 """Data Import"""
@@ -89,17 +100,102 @@ price_data.dropna(inplace=True)
 price_data.to_excel('price_data.xlsx')
 
 ############################################################################
-"""Model Training"""
-#Pipeline
-pipeline = make_pipeline(SimpleImputer(),
-                         StandardScaler(),
-                         PCA(),
-                         GradientBoostingRegressor()
-                         )
+"""Data Split"""
+#Split Data
+X = price_data.drop(columns=drop_labels)
+y = price_data[label]
 
-#Model Train
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=555)
 
 ############################################################################
-"""Model Evaluation"""
+"""Base Models Training"""
+#Instantiate Models
+xgb_clf = xgb.XGBClassifier()
+rf_clf = RandomForestClassifier()
 
+#XGB Grid/Train
+xgb_pipeline = Pipeline([
+                    ('imputer', SimpleImputer()),
+                    ('standard_scaler', StandardScaler()),
+                    ('pca', PCA(n_components=0.95)),
+                    ('xgb_clf', xgb_clf)])
+
+xgb_param_grid = {'xgb_clf__max_depth':[2,3,5,7,10],
+                  'xgb_clf__n_estimators':[10,100,500],}
+
+xgb_grid = GridSearchCV(xgb_pipeline, 
+                    xgb_param_grid, 
+                    cv=5, 
+                    scoring='accuracy',
+                    n_jobs = -1)
+
+xgb_grid.fit(X_train, y_train)
+xgb_model = xgb_grid.best_estimator_
+print(f'XGB Accuracy Score: {xgb_grid.best_score_}')
+
+#Random Forest Grid/Train
+rf_pipeline = Pipeline([
+                    ('imputer', SimpleImputer()),
+                    ('standard_scaler', StandardScaler()),
+                    ('pca', PCA(n_components=0.95)),
+                    ('rf_clf', rf_clf)])
+
+rf_param_grid = {'rf_clf__max_depth':[2,3,5,7,10],
+                  'rf_clf__n_estimators':[10,100,500],}
+
+rf_grid = GridSearchCV(rf_pipeline, 
+                    rf_param_grid, 
+                    cv=5, 
+                    scoring='accuracy',
+                    n_jobs = -1)
+
+rf_grid.fit(X_train, y_train)
+
+rf_model = rf_grid.best_estimator_
+print(f'RF Accuracy Score: {rf_grid.best_score_}')
+############################################################################
+"""Ensemble Training"""
+#Ensemble
+voting_clf = VotingClassifier(estimators=[('xgb', xgb_model),
+                                          ('rf', rf_model)],)
+
+#Ensmble Pipeline
+ensemble_pipeline = Pipeline([
+                    ('imputer', SimpleImputer()),
+                    ('standard_scaler', StandardScaler()),
+                    ('pca', PCA(n_components=0.95)),
+                    ('clf', voting_clf)])
+
+#Parameter Grid
+param_grid = {'clf__voting':['hard', 'soft']}
+
+#Grid Search
+ensemble_grid = GridSearchCV(ensemble_pipeline, 
+                    param_grid, 
+                    cv=5, 
+                    scoring='accuracy',
+                    n_jobs = -1)
+
+#Model Train
+ensemble_grid.fit(X_train, y_train)
+ensemble_model = ensemble_grid.best_estimator_
+print(f'Train Accuracy Score: {ensemble_grid.best_score_}')
+############################################################################
+"""Model Evaluation"""
+#Ensemble Score
+xgb_y_pred = xgb_model.predict(X_test)
+xgb_score = accuracy_score(y_test, xgb_y_pred)
+
+#Random Forest Score
+rf_y_pred = rf_model.predict(X_test)
+rf_score = accuracy_score(y_test, rf_y_pred)
+
+#Ensemble Score
+ensemble_y_pred = ensemble_model.predict(X_test)
+ensemble_score = accuracy_score(y_test, ensemble_y_pred)
+
+#Test Scores
+print(f'XGB Test Accuracy Score: {xgb_score}')
+print(f'Random Forest Test Accuracy Score: {rf_score}')
+print(f'Ensemble Test Accuracy Score: {ensemble_score}') #Ensemble lower in accuracy potentially due to low diversity of input models
 
