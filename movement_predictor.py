@@ -1,6 +1,6 @@
 ############################################################################
 """To Do"""
-#Cumulative Returs in Test Data
+#Cumulative Returns in Test Data
 #Regression Logic
 #Typical Price Movement Distributions
 #Confusion Matrix
@@ -39,9 +39,16 @@ sp500 = 'SPY'
 
 ############################################################################
 """Global Variables"""
+#Misc
 ticker = eurusd
 drop_labels = ['close_offset', 'close_higher']
 label = 'close_higher'
+
+#Model Training
+cv = 5
+scoring = 'f1'
+n_jobs = -1
+pca_n = 0.95
 
 ############################################################################
 """Data Import"""
@@ -129,7 +136,7 @@ lr_clf = LogisticRegression(random_state=555)
 xgb_pipeline = Pipeline([
                     ('imputer', SimpleImputer()),
                     ('standard_scaler', StandardScaler()),
-                    ('pca', PCA(n_components=0.95)),
+                    ('pca', PCA(n_components=pca_n)),
                     ('xgb_clf', xgb_clf)])
 
 xgb_param_grid = {'xgb_clf__max_depth':[2,3,5,7,10],
@@ -137,9 +144,9 @@ xgb_param_grid = {'xgb_clf__max_depth':[2,3,5,7,10],
 
 xgb_grid = GridSearchCV(xgb_pipeline, 
                     xgb_param_grid, 
-                    cv=5, 
-                    scoring='accuracy',
-                    n_jobs = -1)
+                    cv=cv, 
+                    scoring=scoring,
+                    n_jobs = n_jobs)
 
 xgb_grid.fit(X_train, y_train)
 xgb_model = xgb_grid.best_estimator_
@@ -149,7 +156,7 @@ print(f'XGB Train Accuracy Score: {xgb_grid.best_score_}')
 rf_pipeline = Pipeline([
                     ('imputer', SimpleImputer()),
                     ('standard_scaler', StandardScaler()),
-                    ('pca', PCA(n_components=0.95)),
+                    ('pca', PCA(n_components=pca_n)),
                     ('rf_clf', rf_clf)])
 
 rf_param_grid = {'rf_clf__max_depth':[2,3,5,7,10],
@@ -157,9 +164,9 @@ rf_param_grid = {'rf_clf__max_depth':[2,3,5,7,10],
 
 rf_grid = GridSearchCV(rf_pipeline, 
                     rf_param_grid, 
-                    cv=5, 
-                    scoring='accuracy',
-                    n_jobs = -1)
+                    cv=cv, 
+                    scoring=scoring,
+                    n_jobs =n_jobs)
 
 rf_grid.fit(X_train, y_train)
 
@@ -170,7 +177,7 @@ print(f'RF Train Accuracy Score: {rf_grid.best_score_}')
 lr_pipeline = Pipeline([
                     ('imputer', SimpleImputer()),
                     ('standard_scaler', StandardScaler()),
-                    ('pca', PCA(n_components=0.95)),
+                    ('pca', PCA(n_components=pca_n)),
                     ('lr_clf', lr_clf)])
 
 lr_param_grid = {'lr_clf__C': [0.1, 1, 10, 100],
@@ -179,9 +186,9 @@ lr_param_grid = {'lr_clf__C': [0.1, 1, 10, 100],
 
 lr_grid = GridSearchCV(lr_pipeline, 
                     lr_param_grid, 
-                    cv=5, 
-                    scoring='accuracy',
-                    n_jobs = -1)
+                    cv=cv, 
+                    scoring=scoring,
+                    n_jobs = n_jobs)
 
 lr_grid.fit(X_train, y_train)
 
@@ -199,7 +206,7 @@ voting_clf = VotingClassifier(estimators=[('xgb', xgb_model),
 ensemble_pipeline = Pipeline([
                     ('imputer', SimpleImputer()),
                     ('standard_scaler', StandardScaler()),
-                    ('pca', PCA(n_components=0.95)),
+                    ('pca', PCA(n_components=pca_n)),
                     ('clf', voting_clf)])
 
 #Parameter Grid
@@ -208,9 +215,9 @@ param_grid = {'clf__voting':['hard', 'soft']}
 #Grid Search
 ensemble_grid = GridSearchCV(ensemble_pipeline, 
                     param_grid, 
-                    cv=5, 
-                    scoring='accuracy',
-                    n_jobs = -1)
+                    cv=cv, 
+                    scoring=scoring,
+                    n_jobs = n_jobs)
 
 #Model Train
 ensemble_grid.fit(X_train, y_train)
