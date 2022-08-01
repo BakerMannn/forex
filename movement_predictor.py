@@ -1,4 +1,13 @@
 ############################################################################
+"""To Do"""
+#Cumulative Returs in Test Data
+#Regression Logic
+#Typical Price Movement Distributions
+#Confusion Matrix
+#Best estimator logic for clf and reg
+#Buy or Sell Function
+
+############################################################################
 """Packages Import"""
 #Data Manipulation/Import
 import pandas as pd
@@ -16,8 +25,11 @@ from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from sklearn.ensemble import RandomForestClassifier, VotingClassifier
+from sklearn.svm import SVC
+from sklearn.linear_model import LogisticRegression
+from sklearn.dummy import DummyClassifier
 import xgboost as xgb
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 
 ############################################################################
 """Ticker Archive"""
@@ -111,6 +123,7 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_
 #Instantiate Models
 xgb_clf = xgb.XGBClassifier(seed=555)
 rf_clf = RandomForestClassifier(random_state=555)
+lr_clf = LogisticRegression(random_state=555)
 
 #XGB Grid/Train
 xgb_pipeline = Pipeline([
@@ -153,11 +166,34 @@ rf_grid.fit(X_train, y_train)
 rf_model = rf_grid.best_estimator_
 print(f'RF Train Accuracy Score: {rf_grid.best_score_}')
 
+#Logistic Regression Grid/Train
+lr_pipeline = Pipeline([
+                    ('imputer', SimpleImputer()),
+                    ('standard_scaler', StandardScaler()),
+                    ('pca', PCA(n_components=0.95)),
+                    ('lr_clf', lr_clf)])
+
+lr_param_grid = {'lr_clf__C': [0.1, 1, 10, 100],
+                  'lr_clf__solver': ['newton-cg', 'lbfgs', 'liblinear', 'sag', 'saga'],
+                  'lr_clf__penalty': ['none', 'l1', 'l2', 'elasticnet']}
+
+lr_grid = GridSearchCV(lr_pipeline, 
+                    lr_param_grid, 
+                    cv=5, 
+                    scoring='accuracy',
+                    n_jobs = -1)
+
+lr_grid.fit(X_train, y_train)
+
+lr_model = lr_grid.best_estimator_
+print(f'Log Reg Train Accuracy Score: {lr_grid.best_score_}')
+
 ############################################################################
 """Ensemble Training"""
 #Ensemble
 voting_clf = VotingClassifier(estimators=[('xgb', xgb_model),
-                                          ('rf', rf_model)],)
+                                          ('rf', rf_model),
+                                          ('lr', lr_model)])
 
 #Ensmble Pipeline
 ensemble_pipeline = Pipeline([
@@ -179,26 +215,43 @@ ensemble_grid = GridSearchCV(ensemble_pipeline,
 #Model Train
 ensemble_grid.fit(X_train, y_train)
 ensemble_model = ensemble_grid.best_estimator_
-print(f'XGB Train Accuracy Score: {ensemble_grid.best_score_}')
+print(f'Ensemble Train Accuracy Score: {ensemble_grid.best_score_}')
 
 ############################################################################
 """Model Evaluation"""
-#Ensemble Score
+#Dummy Estimator
+dummy_clf = DummyClassifier(strategy='most_frequent', random_state=555)
+dummy_clf.fit(X_train, y_train)
+
+dummy_y_pred = dummy_clf.predict(X_test)
+dummy_score = classification_report(y_test, dummy_y_pred)
+
+#XGB Score
 xgb_y_pred = xgb_model.predict(X_test)
-xgb_score = accuracy_score(y_test, xgb_y_pred)
+xgb_score = classification_report(y_test, xgb_y_pred)
 
 #Random Forest Score
 rf_y_pred = rf_model.predict(X_test)
-rf_score = accuracy_score(y_test, rf_y_pred)
+rf_score = classification_report(y_test, rf_y_pred)
+
+#Logistic Regression Score
+lr_y_pred = lr_model.predict(X_test)
+lr_score = classification_report(y_test, lr_y_pred)
 
 #Ensemble Score
 ensemble_y_pred = ensemble_model.predict(X_test)
-ensemble_score = accuracy_score(y_test, ensemble_y_pred)
+ensemble_score = classification_report(y_test, ensemble_y_pred)
 
 #Test Scores
-print(f'XGB Test Accuracy Score: {xgb_score}')
-print(f'Random Forest Test Accuracy Score: {rf_score}')
-print(f'Ensemble Test Accuracy Score: {ensemble_score}')
+model_scores = [('Dummy', dummy_score), 
+                ('XGB', xgb_score), 
+                ('Random Forest', rf_score), 
+                ('Log Reg', lr_score), 
+                ('Ensemble', ensemble_score)]
+
+for name, score in model_scores:
+    print(f'{name} Classification Report:\n'
+          f'{score}')
 
 ############################################################################
 """Model Visualization"""
