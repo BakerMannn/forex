@@ -1,10 +1,8 @@
 ############################################################################
 """To Do"""
-#Cumulative Returns in Test Data
 #Regression Logic
 #Typical Price Movement Distributions
-#Confusion Matrix
-#Best estimator logic for clf and reg
+#Best estimator logic for reg
 #Buy or Sell Function
 
 ############################################################################
@@ -231,34 +229,56 @@ dummy_clf = DummyClassifier(strategy='most_frequent', random_state=555)
 dummy_clf.fit(X_train, y_train)
 
 dummy_y_pred = dummy_clf.predict(X_test)
-dummy_score = classification_report(y_test, dummy_y_pred)
+dummy_score = accuracy_score(y_test, dummy_y_pred)
+dummy_report = classification_report(y_test, dummy_y_pred)
 
 #XGB Score
 xgb_y_pred = xgb_model.predict(X_test)
-xgb_score = classification_report(y_test, xgb_y_pred)
+xgb_score = accuracy_score(y_test, xgb_y_pred)
+xgb_report = classification_report(y_test, xgb_y_pred)
 
 #Random Forest Score
 rf_y_pred = rf_model.predict(X_test)
-rf_score = classification_report(y_test, rf_y_pred)
+rf_score = accuracy_score(y_test, rf_y_pred)
+rf_report = classification_report(y_test, rf_y_pred)
 
 #Logistic Regression Score
 lr_y_pred = lr_model.predict(X_test)
-lr_score = classification_report(y_test, lr_y_pred)
+lr_score = accuracy_score(y_test, lr_y_pred)
+lr_report = classification_report(y_test, lr_y_pred)
 
 #Ensemble Score
 ensemble_y_pred = ensemble_model.predict(X_test)
-ensemble_score = classification_report(y_test, ensemble_y_pred)
+ensemble_score = accuracy_score(y_test, ensemble_y_pred)
+ensemble_report = classification_report(y_test, ensemble_y_pred)
 
 #Test Scores
-model_scores = [('Dummy', dummy_score), 
-                ('XGB', xgb_score), 
-                ('Random Forest', rf_score), 
-                ('Log Reg', lr_score), 
-                ('Ensemble', ensemble_score)]
+model_scores = {xgb_model:xgb_score, 
+                rf_model:rf_score, 
+                lr_model:lr_score, 
+                ensemble_model:ensemble_score}
 
-for name, score in model_scores:
+model_reports = [('Dummy', dummy_report), 
+                ('XGB', xgb_report), 
+                ('Random Forest', rf_report), 
+                ('Log Reg', lr_report), 
+                ('Ensemble', ensemble_report)]
+
+for name, report in model_reports:
     print(f'{name} Classification Report:\n'
-          f'{score}')
+          f'{report}')
 
 ############################################################################
-"""Model Visualization"""
+"""Best Models"""
+best_clf = max(model_scores, key=model_scores.get)
+
+#Cumulative Returns
+cumulative_returns_df = X_test.copy()
+cumulative_returns_df['pred'] = best_clf.predict(X_test)
+cumulative_returns_df['pred'].replace([True, False], [1,-1], inplace=True)
+cumulative_returns_df['close_offset'] = cumulative_returns_df['Close'].shift(-1)
+cumulative_returns_df.dropna(inplace=True)
+
+cumulative_returns_df = cumulative_returns_df.assign(PL = lambda x: (x['close_offset'] - x['Close']) * x['pred'])
+
+total_pl = cumulative_returns_df['PL'].sum()
