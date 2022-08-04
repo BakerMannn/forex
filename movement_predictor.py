@@ -34,17 +34,19 @@ from sklearn.metrics import accuracy_score, classification_report, confusion_mat
 eurusd = 'EURUSD=X'
 bitcoin  = 'BTC-USD'
 sp500 = 'SPY'
+google = 'GOOGL'
 
 ############################################################################
 """Global Variables"""
 #Misc
-ticker = eurusd
+ticker = input('Ticker:')
 drop_labels = ['close_offset', 'close_higher']
 label = 'close_higher'
+trade_prob_quantile = 0.85
 
 #Model Training
 cv = 5
-scoring = 'f1'
+scoring = 'accuracy'
 n_jobs = -1
 pca_n = 0.95
 
@@ -269,16 +271,37 @@ for name, report in model_reports:
           f'{report}')
 
 ############################################################################
-"""Best Models"""
+"""Decision Function"""
 best_clf = max(model_scores, key=model_scores.get)
 
+#Probablity Function
+prob_df = X_test.copy()
+prob_df[['prob_sell', 'prob_buy']] = best_clf.predict_proba(X_test)
+upper_limit = prob_df['prob_buy'].quantile(trade_prob_quantile)
+prob_df['decision'] = prob_df['prob_buy'].apply(lambda x: 'buy' if x> upper_limit else ('sell' if x < (1-upper_limit) else 'no_trade'))
+trades = prob_df['decision'].value_counts()
+
 #Cumulative Returns
-cumulative_returns_df = X_test.copy()
-cumulative_returns_df['pred'] = best_clf.predict(X_test)
-cumulative_returns_df['pred'].replace([True, False], [1,-1], inplace=True)
+cumulative_returns_df = prob_df.copy()
+cumulative_returns_df['decision'].replace(['buy', 'sell', 'no_trade'], [1,-1,0], inplace=True)
 cumulative_returns_df['close_offset'] = cumulative_returns_df['Close'].shift(-1)
 cumulative_returns_df.dropna(inplace=True)
 
-cumulative_returns_df = cumulative_returns_df.assign(PL = lambda x: (x['close_offset'] - x['Close']) * x['pred'])
+cumulative_returns_df = cumulative_returns_df.assign(PL = lambda x: (x['close_offset'] - x['Close']) * x['decision'])
 
 total_pl = cumulative_returns_df['PL'].sum()
+print(f'Cumulative Returns: {round(total_pl,2)}')
+print(f'Buy Threshold: {round(upper_limit,3)}')
+print(f'Sell Threshold: {round((1-upper_limit),3)}')
+print(trades)
+############################################################################
+"""Model EDA"""
+# #Sell Probability Distribution
+# sns.kdeplot(data=cumulative_returns_df,
+#             x='prob_sell')
+# plt.show()
+
+# #Buy Probability Distribution
+# sns.kdeplot(data=cumulative_returns_df,
+#             x='prob_buy')
+# plt.show()
